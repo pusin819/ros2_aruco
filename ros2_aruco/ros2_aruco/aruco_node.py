@@ -26,19 +26,17 @@ Author: Nathan Sprague
 Version: 10/26/2020
 
 """
-
+import cv2
+import numpy as np
 import rclpy
 import rclpy.node
-from rclpy.qos import qos_profile_sensor_data
-from cv_bridge import CvBridge
-import numpy as np
-import cv2
 import tf_transformations
-from sensor_msgs.msg import CameraInfo
-from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseArray, Pose
-from ros2_aruco_interfaces.msg import ArucoMarkers
+from cv_bridge import CvBridge
+from geometry_msgs.msg import Pose, PoseArray
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType
+from rclpy.qos import qos_profile_sensor_data
+from ros2_aruco_interfaces.msg import ArucoMarkers
+from sensor_msgs.msg import CameraInfo, Image
 
 
 class ArucoNode(rclpy.node.Node):
@@ -73,6 +71,7 @@ class ArucoNode(rclpy.node.Node):
             ),
         )
 
+
         self.declare_parameter(
             name="camera_info_topic",
             value="/camera/camera_info",
@@ -89,6 +88,15 @@ class ArucoNode(rclpy.node.Node):
                 type=ParameterType.PARAMETER_STRING,
                 description="Camera optical frame to use.",
             ),
+        )
+
+        self.declare_parameter(
+            name="imshow_isshow",
+            value=True,
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_BOOL,
+                description="Show vison with bbox"
+            )
         )
 
         self.marker_size = (
@@ -113,6 +121,9 @@ class ArucoNode(rclpy.node.Node):
 
         self.camera_frame = (
             self.get_parameter("camera_frame").get_parameter_value().string_value
+        )
+        self.imshow_isshow = (
+            self.get_parameter("imshow_isshow").get_parameter_value().bool_value
         )
 
         # Make sure we have a valid dictionary id:
@@ -146,7 +157,7 @@ class ArucoNode(rclpy.node.Node):
         self.distortion = None
 
         dictionary = cv2.aruco.getPredefinedDictionary(dictionary_id)
-        parameters =  cv2.aruco.DetectorParameters()
+        parameters = cv2.aruco.DetectorParameters()
         self.detector = cv2.aruco.ArucoDetector(dictionary, parameters)
 
         self.bridge = CvBridge()
@@ -177,6 +188,12 @@ class ArucoNode(rclpy.node.Node):
         pose_array.header.stamp = img_msg.header.stamp
 
         corners, marker_ids, rejected = self.detector.detectMarkers(cv_image)
+
+        if self.imshow_isshow :
+            ar_img = cv2.aruco.drawDetectedMarkers(cv_image,corners,marker_ids)
+            cv2.imshow("ArucoMarker",ar_img)
+        
+        
 
         if marker_ids is not None:
             if cv2.__version__ > "4.0.0":
