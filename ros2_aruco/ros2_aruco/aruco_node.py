@@ -28,6 +28,7 @@ Version: 10/26/2020
 """
 import cv2
 import numpy as np
+import quaternion
 import rclpy
 import rclpy.node
 import tf_transformations
@@ -38,6 +39,8 @@ from rclpy.qos import qos_profile_sensor_data
 from ros2_aruco_interfaces.msg import ArucoMarkers
 from sensor_msgs.msg import CameraInfo, Image
 
+from py_usb2can_param.py_usb2can_param import py_usb2can_param
+from communication_msgs.msg import CommunicationFrame
 
 class ArucoNode(rclpy.node.Node):
     def __init__(self):
@@ -150,6 +153,7 @@ class ArucoNode(rclpy.node.Node):
         # Set up publishers
         self.poses_pub = self.create_publisher(PoseArray, "aruco_poses", 10)
         self.markers_pub = self.create_publisher(ArucoMarkers, "aruco_markers", 10)
+        self.can_pub = self.create_publisher(CommunicationFrame, "can_frame", 10)
 
         # Set up fields for camera parameters
         self.info_msg = None
@@ -223,6 +227,41 @@ class ArucoNode(rclpy.node.Node):
                 markers.poses.append(pose)
                 markers.marker_ids.append(marker_id[0])
 
+            can_topic = CommunicationFrame()
+            can_topic.header = img_msg.header
+            
+            can_topic.id = 0x41
+            can_topic.frame = CommunicationFrame.CAN_DATA
+            can_topic.format = CommunicationFrame.STANDARD_FORMAT
+            
+            
+            
+            for pose in pose_array.poses:
+                data_array1 = list()
+                data_array2 = list()
+                quat = np.quaternion(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z)
+                euler = quaternion.as_euler_angles(quat)
+                r = 180 - np.int32(np.rad2deg(euler[1]))
+                
+                position_x = np.int32(pose.position.x * 100)
+                position_y = np.int32(pose.position.y * 100)
+                self.get_logger().info(f"Position: {position_x}, {position_y}, {r}")
+                
+                data_array1 = np.append(data_array1, 0x02)
+                data_array1 = np.append(data_array1, np.right_shift(position_x,8) & 0xFF)
+                data_array1 = np.append(data_array1, (position_x) & 0xFF)
+                data_array1 = np.append(data_array1, (position_y >> 8) & 0xFF)
+                data_array1 = np.append(data_array1, (position_y) & 0xFF)
+                data_array2 = np.append(data_array2, 0x03)
+                data_array2 = np.append(data_array2, (r >> 8) & 0xFF)
+                data_array2 = np.append(data_array2, (r) & 0xFF)
+                data_array2 = np.append(data_array2, 0x00)
+                data_array2 = np.append(data_array2, 0x00)
+
+                can_topic.data = data_array1.astype(np.uint8).tolist()
+                self.can_pub.publish(can_topic)
+                can_topic.data = data_array2.astype(np.uint8).tolist()
+                self.can_pub.publish(can_topic)
             self.poses_pub.publish(pose_array)
             self.markers_pub.publish(markers)
 
