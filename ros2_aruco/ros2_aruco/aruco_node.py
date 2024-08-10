@@ -167,6 +167,7 @@ class ArucoNode(rclpy.node.Node):
         self.bridge = CvBridge()
 
     def info_callback(self, info_msg):
+        self.get_logger().info("Camera info received.")
         self.info_msg = info_msg
         self.intrinsic_mat = np.reshape(np.array(self.info_msg.k), (3, 3))
         self.distortion = np.array(self.info_msg.d)
