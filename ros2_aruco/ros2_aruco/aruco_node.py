@@ -250,8 +250,8 @@ class ArucoNode(rclpy.node.Node):
                 
                 data_array1 = np.append(data_array1, 0x02)
                 data_array1 = np.append(data_array1, np.right_shift(position_x,8) & 0xFF)
-                data_array1 = np.append(data_array1, (position_x) & 0xFF)
-                data_array1 = np.append(data_array1, (position_y >> 8) & 0xFF)
+                data_array1 = np.append(data_array1, (position_x + 128) & 0xFF)
+                data_array1 = np.append(data_array1, ((position_y + 128) >> 8) & 0xFF)
                 data_array1 = np.append(data_array1, (position_y) & 0xFF)
                 data_array2 = np.append(data_array2, 0x03)
                 data_array2 = np.append(data_array2, (r >> 8) & 0xFF)
