@@ -245,14 +245,14 @@ class ArucoNode(rclpy.node.Node):
                 r = 180 - np.int32(np.rad2deg(euler[1]))
                 
                 position_x = np.int32(pose.position.x * 100)
-                position_y = np.int32(pose.position.y * 100)
-                self.get_logger().info(f"Position: {position_x}, {position_y}, {r}")
+                position_z = np.int32(pose.position.z * 100)
+                self.get_logger().info(f"Position: {position_x}, {position_z}, {r}")
                 
                 data_array1 = np.append(data_array1, 0x02)
                 data_array1 = np.append(data_array1, np.right_shift(position_x,8) & 0xFF)
                 data_array1 = np.append(data_array1, (position_x + 128) & 0xFF)
-                data_array1 = np.append(data_array1, ((position_y + 128) >> 8) & 0xFF)
-                data_array1 = np.append(data_array1, (position_y) & 0xFF)
+                data_array1 = np.append(data_array1, ((position_z + 128) >> 8) & 0xFF)
+                data_array1 = np.append(data_array1, position_z & 0xFF)
                 data_array2 = np.append(data_array2, 0x03)
                 data_array2 = np.append(data_array2, (r >> 8) & 0xFF)
                 data_array2 = np.append(data_array2, (r) & 0xFF)
