@@ -209,6 +209,7 @@ class ArucoNode(rclpy.node.Node):
         if self.imshow_isshow :
             ar_img = cv2.aruco.drawDetectedMarkers(cv_image,corners,marker_ids)
             cv2.imshow("ArucoMarker",ar_img)
+            cv2.waitKey(1)
         
         if marker_ids is not None:
             if cv2.__version__ > "4.0.0":
