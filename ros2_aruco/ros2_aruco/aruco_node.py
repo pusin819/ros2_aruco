@@ -102,6 +102,15 @@ class ArucoNode(rclpy.node.Node):
             )
         )
 
+        self.declare_parameter(
+            name="id_whitelist",
+            value=[],
+            descriptor=ParameterDescriptor(
+                type=ParameterType.PARAMETER_INTEGER_ARRAY,
+                description="List of marker ids to consider. Empty list means all markers are considered."
+            )
+        )
+
         self.marker_size = (
             self.get_parameter("marker_size").get_parameter_value().double_value
         )
@@ -129,6 +138,9 @@ class ArucoNode(rclpy.node.Node):
             self.get_parameter("imshow_isshow").get_parameter_value().bool_value
         )
 
+        self.id_whitelist = (
+            self.get_parameter("id_whitelist").get_parameter_value().integer_array_value
+        )
         # Make sure we have a valid dictionary id:
         try:
             dictionary_id = cv2.aruco.__getattribute__(dictionary_id_name)
@@ -198,8 +210,6 @@ class ArucoNode(rclpy.node.Node):
             ar_img = cv2.aruco.drawDetectedMarkers(cv_image,corners,marker_ids)
             cv2.imshow("ArucoMarker",ar_img)
         
-        
-
         if marker_ids is not None:
             if cv2.__version__ > "4.0.0":
                 rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
@@ -210,61 +220,64 @@ class ArucoNode(rclpy.node.Node):
                     corners, self.marker_size, self.intrinsic_mat, self.distortion
                 )
             for i, marker_id in enumerate(marker_ids):
-                pose = Pose()
-                pose.position.x = tvecs[i][0][0]
-                pose.position.y = tvecs[i][0][1]
-                pose.position.z = tvecs[i][0][2]
+                if marker_id in self.id_whitelist or len(self.id_whitelist) == 0:
+                    pose = Pose()
+                    pose.position.x = tvecs[i][0][0]
+                    pose.position.y = tvecs[i][0][1]
+                    pose.position.z = tvecs[i][0][2]
 
-                rot_matrix = np.eye(4)
-                rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvecs[i][0]))[0]
-                quat = tf_transformations.quaternion_from_matrix(rot_matrix)
+                    rot_matrix = np.eye(4)
+                    rot_matrix[0:3, 0:3] = cv2.Rodrigues(np.array(rvecs[i][0]))[0]
+                    quat = tf_transformations.quaternion_from_matrix(rot_matrix)
 
-                pose.orientation.x = quat[0]
-                pose.orientation.y = quat[1]
-                pose.orientation.z = quat[2]
-                pose.orientation.w = quat[3]
+                    pose.orientation.x = quat[0]
+                    pose.orientation.y = quat[1]
+                    pose.orientation.z = quat[2]
+                    pose.orientation.w = quat[3]
 
-                pose_array.poses.append(pose)
-                markers.poses.append(pose)
-                markers.marker_ids.append(marker_id[0])
+                    pose_array.poses.append(pose)
+                    markers.poses.append(pose)
+                    markers.marker_ids.append(marker_id[0])
 
-            can_topic = CommunicationFrame()
-            can_topic.header = img_msg.header
-            
-            can_topic.id = 0x41
-            can_topic.frame = CommunicationFrame.CAN_DATA
-            can_topic.format = CommunicationFrame.STANDARD_FORMAT
-            
-            
-            
-            for pose in pose_array.poses:
-                data_array1 = list()
-                data_array2 = list()
-                quat = np.quaternion(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z)
-                euler = quaternion.as_euler_angles(quat)
-                r = 180 - np.int32(np.rad2deg(euler[1]))
+            if len(markers.marker_ids) > 0:
+                can_topic = CommunicationFrame()
+                can_topic.header = img_msg.header
                 
-                position_x = np.int32(pose.position.x * 100)
-                position_z = np.int32(pose.position.z * 100)
-                self.get_logger().info(f"Position: {position_x}, {position_z}, {r}")
+                can_topic.id = 0x41
+                can_topic.frame = CommunicationFrame.CAN_DATA
+                can_topic.format = CommunicationFrame.STANDARD_FORMAT
                 
-                data_array1 = np.append(data_array1, 0x02)
-                data_array1 = np.append(data_array1, np.right_shift(position_x,8) & 0xFF)
-                data_array1 = np.append(data_array1, (position_x + 128) & 0xFF)
-                data_array1 = np.append(data_array1, ((position_z + 128) >> 8) & 0xFF)
-                data_array1 = np.append(data_array1, position_z & 0xFF)
-                data_array2 = np.append(data_array2, 0x03)
-                data_array2 = np.append(data_array2, (r >> 8) & 0xFF)
-                data_array2 = np.append(data_array2, (r) & 0xFF)
-                data_array2 = np.append(data_array2, 0x00)
-                data_array2 = np.append(data_array2, 0x00)
+                
+                
+                for pose in pose_array.poses:
+                    data_array1 = list()
+                    data_array2 = list()
+                    quat = np.quaternion(pose.orientation.w, pose.orientation.x, pose.orientation.y, pose.orientation.z)
+                    euler = quaternion.as_euler_angles(quat)
+                    print(euler)
+                    r = 180 - np.int32(np.rad2deg(euler[1]))
+                    
+                    position_x = np.int32(pose.position.x * 100)
+                    position_z = np.int32(pose.position.z * 100)
+                    self.get_logger().info(f"Position: {position_x}, {position_z}, {r}")
+                    
+                    data_array1 = np.append(data_array1, 0x02)
+                    data_array1 = np.append(data_array1, np.right_shift(position_x,8) & 0xFF)
+                    data_array1 = np.append(data_array1, (position_x + 128) & 0xFF)
+                    data_array1 = np.append(data_array1, ((position_z + 128) >> 8) & 0xFF)
+                    data_array1 = np.append(data_array1, position_z & 0xFF)
+                    data_array2 = np.append(data_array2, 0x03)
+                    data_array2 = np.append(data_array2, (r >> 8) & 0xFF)
+                    data_array2 = np.append(data_array2, (r) & 0xFF)
+                    data_array2 = np.append(data_array2, 0x00)
+                    data_array2 = np.append(data_array2, 0x00)
 
-                can_topic.data = data_array1.astype(np.uint8).tolist()
-                self.can_pub.publish(can_topic)
-                can_topic.data = data_array2.astype(np.uint8).tolist()
-                self.can_pub.publish(can_topic)
-            self.poses_pub.publish(pose_array)
-            self.markers_pub.publish(markers)
+                    can_topic.data = data_array1.astype(np.uint8).tolist()
+                    self.can_pub.publish(can_topic)
+                    can_topic.data = data_array2.astype(np.uint8).tolist()
+                    self.can_pub.publish(can_topic)
+                self.poses_pub.publish(pose_array)
+                self.markers_pub.publish(markers)
 
 
 def main():
